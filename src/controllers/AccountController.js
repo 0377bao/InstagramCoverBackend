@@ -4,7 +4,6 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 class AccountController {
-    // [POST] api/news/create-news
     async createAccount(req, res) {
         try {
             const { avt, username, email, password } = req.body;
@@ -23,7 +22,6 @@ class AccountController {
             });
         }
     }
-    // [POST] api/news/create-news
     async findAccount(req, res) {
         try {
             const responseService = await AccountService.findAccount();

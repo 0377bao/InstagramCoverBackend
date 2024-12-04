@@ -1,11 +1,12 @@
 const PostModel = require('../models/PostModel');
 const AccountModel = require('../models/AccountModels');
+const CommentModel = require('../models/CommentModel');
 const dotenv = require('dotenv');
+const Post = require('../models/PostModel');
 
 dotenv.config();
 
 class PostService {
-    // [POST] /api/product/create-product
     createPost(newPost) {
         return new Promise(async (resolve, reject) => {
             const { authorId, content, image } = newPost;
@@ -27,6 +28,90 @@ class PostService {
                         // data: createPost,
                     });
                 }
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+    findPost(findPost) {
+        return new Promise(async (resolve, reject) => {
+            const { authorId, page, limit } = findPost;
+            const limitCurrent = limit || 5;
+            try {
+                const author = await AccountModel.findById(authorId).select('friends');
+                if (!author) {
+                    resolve({
+                        status: 'ERR',
+                        message: 'Author not found',
+                    });
+                }
+                const friendsIds = author.friends;
+                const posts = await Post.find({ author: { $in: friendsIds } })
+                    .sort({ createdAt: -1 })
+                    .limit(limitCurrent)
+                    .skip((page - 1) * limitCurrent);
+                // const postsData = await Promise.all(
+                //     posts.map(async (post) => {
+                //         const authorTemp = await AccountModel.findById(post.author).select('username avt');
+                //         post.author = authorTemp;
+                //         return post;
+                //     }),
+                // );
+                // const result = await Promise.all(
+                //     postsData.map(async (post) => {
+                //         const postComment = await Promise.all(
+                //             post.comments.map(async (postItem) => {
+                //                 const comment = await CommentModel.findById(postItem);
+                //                 const authorTemp = await AccountModel.findById(comment.account).select('username avt');
+                //                 postItem = {
+                //                     ...comment,
+                //                     ...authorTemp,
+                //                 };
+                //                 postItem = postItem._doc;
+                //                 return postItem;
+                //             }),
+                //         );
+                //         post.comments = postComment;
+                //         return post;
+                //     }),
+                // );
+                const postsData = await Promise.all(
+                    posts.map(async (post) => {
+                        // Lấy thông tin tác giả của bài viết
+                        const authorTemp = await AccountModel.findById(post.author).select('username avt');
+                        post.author = authorTemp;
+
+                        // Lấy thông tin chi tiết của các comment
+                        const postComments = await CommentModel.find({
+                            _id: { $in: post.comments }, // Lấy tất cả comments theo danh sách ID
+                        }).lean();
+
+                        // Thêm thông tin tài khoản (author) vào từng comment
+                        const enrichedComments = await Promise.all(
+                            postComments.map(async (comment) => {
+                                const commentAuthor = await AccountModel.findById(comment.account)
+                                    .select('username avt')
+                                    .lean();
+
+                                return {
+                                    ...comment, // Thông tin comment
+                                    author: commentAuthor, // Thông tin người viết comment
+                                };
+                            }),
+                        );
+
+                        return {
+                            ...post._doc,
+                            comments: enrichedComments,
+                        };
+                    }),
+                );
+
+                resolve({
+                    status: 'OK',
+                    message: 'Find Post Success',
+                    data: postsData,
+                });
             } catch (e) {
                 reject(e);
             }
