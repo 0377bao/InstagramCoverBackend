@@ -53,5 +53,23 @@ class PostController {
             });
         }
     }
+    async likePost(req, res) {
+        try {
+            const { authorId, postId } = req.body;
+            if (!authorId || !postId) {
+                return res.status(200).json({
+                    status: 'ERR',
+                    message: 'The input is required',
+                });
+            }
+            const responseService = await PostService.likePost(req.body);
+            return res.status(200).json(responseService);
+        } catch (e) {
+            console.log(e);
+            return res.status(404).json({
+                error: e,
+            });
+        }
+    }
 }
 module.exports = new PostController();

@@ -20,12 +20,13 @@ class PostService {
                     comments: [],
                 });
                 if (createPost) {
-                    console.log(createPost);
+                    const author = await AccountModel.findById(authorId);
+                    author.posts.push(createPost._id);
+                    await author.save();
 
                     resolve({
                         status: 'OK',
                         message: 'Create Post Success',
-                        // data: createPost,
                     });
                 }
             } catch (e) {
@@ -46,35 +47,11 @@ class PostService {
                     });
                 }
                 const friendsIds = author.friends;
-                const posts = await Post.find({ author: { $in: friendsIds } })
+                const filterFriends = [...friendsIds, authorId];
+                const posts = await Post.find({ author: { $in: filterFriends } })
                     .sort({ createdAt: -1 })
                     .limit(limitCurrent)
                     .skip((page - 1) * limitCurrent);
-                // const postsData = await Promise.all(
-                //     posts.map(async (post) => {
-                //         const authorTemp = await AccountModel.findById(post.author).select('username avt');
-                //         post.author = authorTemp;
-                //         return post;
-                //     }),
-                // );
-                // const result = await Promise.all(
-                //     postsData.map(async (post) => {
-                //         const postComment = await Promise.all(
-                //             post.comments.map(async (postItem) => {
-                //                 const comment = await CommentModel.findById(postItem);
-                //                 const authorTemp = await AccountModel.findById(comment.account).select('username avt');
-                //                 postItem = {
-                //                     ...comment,
-                //                     ...authorTemp,
-                //                 };
-                //                 postItem = postItem._doc;
-                //                 return postItem;
-                //             }),
-                //         );
-                //         post.comments = postComment;
-                //         return post;
-                //     }),
-                // );
                 const postsData = await Promise.all(
                     posts.map(async (post) => {
                         // Lấy thông tin tác giả của bài viết
@@ -99,9 +76,12 @@ class PostService {
                                 };
                             }),
                         );
+                        const likesIndex = post.likes.findIndex((id) => id.toString() === authorId);
+                        const isLike = likesIndex !== -1;
 
                         return {
                             ...post._doc,
+                            isLike,
                             comments: enrichedComments,
                         };
                     }),
@@ -112,6 +92,37 @@ class PostService {
                     message: 'Find Post Success',
                     data: postsData,
                 });
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+    likePost(data) {
+        return new Promise(async (resolve, reject) => {
+            const { authorId, postId } = data;
+            try {
+                const post = await PostModel.findById(postId);
+                if (!post) {
+                    resolve({
+                        status: 'ERR',
+                        message: 'Post not found',
+                    });
+                } else {
+                    const likesIndex = post.likes.findIndex((id) => id.toString() === authorId);
+
+                    if (likesIndex !== -1) {
+                        post.likes.splice(likesIndex, 1);
+                    } else {
+                        post.likes.push(authorId);
+                    }
+
+                    await post.save();
+                    resolve({
+                        status: 'OK',
+                        message: likesIndex !== -1 ? 'Unlike successful' : 'Like successful',
+                        data: post,
+                    });
+                }
             } catch (e) {
                 reject(e);
             }
